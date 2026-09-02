@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1:1 Mechanical Risk Calculator</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --accent-blue: #38bdf8;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --danger: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--bg-dark); color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .calculator { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border); width: 100%; max-width: 480px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h2 { color: var(--accent-blue); font-size: 1.5rem; margin-bottom: 4px; }
+        .header p { color: var(--text-muted); font-size: 0.9rem; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 6px; font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
+        input, select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-main); font-size: 1rem; outline: none; transition: border 0.2s; }
+        input:focus, select:focus { border-color: var(--accent-blue); }
+        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
+        .result-card { background: var(--bg-dark); padding: 16px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
+        .result-card.primary { grid-column: span 2; background: rgba(56, 189, 248, 0.1); border-color: var(--accent-blue); }
+        .result-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .result-value { font-size: 1.5rem; font-weight: bold; color: var(--text-main); }
+        .primary .result-value { color: var(--accent-blue); font-size: 2rem; }
+        .warning { color: var(--danger); font-size: 0.85rem; margin-top: 8px; text-align: center; display: none; }
+    </style>
+</head>
+<body>
+    <div class="calculator">
+        <div class="header">
+            <h2>1:1 Risk Engine</h2>
+            <p>Tradovate ATM & Sizing Calculator</p>
+        </div>
+
+        <div class="form-group">
+            <label for="asset">Instrument</label>
+            <select id="asset" onchange="calculate()">
+                <option value="2">MNQ - Micro Nasdaq ($2/pt)</option>
+                <option value="5">MES - Micro S&P 500 ($5/pt)</option>
+                <option value="20">NQ - Mini Nasdaq ($20/pt)</option>
+                <option value="50">ES - Mini S&P 500 ($50/pt)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="risk">Max Risk Target ($)</label>
+            <input type="number" id="risk" value="125" step="1" min="1" oninput="calculate()">
+        </div>
+
+        <div class="form-group">
+            <label for="stop">TradingView Stop Loss (Points)</label>
+            <input type="number" id="stop" value="10" step="0.25" min="0.25" oninput="calculate()">
+        </div>
+        
+        <div class="warning" id="warningMessage">Risk limit too small for this stop distance. Use Micros or widen risk.</div>
+
+        <div class="results-grid">
+            <div class="result-card primary">
+                <div class="result-label">Contracts to Buy/Sell</div>
+                <div class="result-value" id="outContracts">6</div>
+            </div>
+            
+            <div class="result-card">
+                <div class="result-label">Tradovate ATM (Ticks)</div>
+                <div class="result-value" id="outTicks">40</div>
+            </div>
+            
+            <div class="result-card">
+                <div class="result-label">Actual Risk ($)</div>
+                <div class="result-value" id="outActualRisk">$120</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function calculate() {
+            const pointValue = parseFloat(document.getElementById('asset').value);
+            const targetRisk = parseFloat(document.getElementById('risk').value) || 0;
+            const stopPoints = parseFloat(document.getElementById('stop').value) || 0;
+            const warningEl = document.getElementById('warningMessage');
+            
+            if (stopPoints <= 0 || targetRisk <= 0) {
+                resetOutputs();
+                return;
+            }
+
+            // Tradovate Ticks (4 ticks per point for CME equity indices)
+            const atmTicks = stopPoints * 4;
+            
+            // Dollar Risk per single contract
+            const riskPerContract = stopPoints * pointValue;
+            
+            // Max contracts without exceeding Target Risk (Rounds Down automatically)
+            const contracts = Math.floor(targetRisk / riskPerContract);
+            
+            // Actual Total Risk
+            const actualRisk = contracts * riskPerContract;
+
+            document.getElementById('outTicks').innerText = atmTicks;
+            
+            if (contracts > 0) {
+                document.getElementById('outContracts').innerText = contracts;
+                document.getElementById('outActualRisk').innerText = "$" + actualRisk.toFixed(2);
+                warningEl.style.display = 'none';
+            } else {
+                document.getElementById('outContracts').innerText = "0";
+                document.getElementById('outActualRisk').innerText = "$0.00";
+                warningEl.style.display = 'block';
+            }
+        }
+        
+        function resetOutputs() {
+            document.getElementById('outTicks').innerText = "0";
+            document.getElementById('outContracts').innerText = "0";
+            document.getElementById('outActualRisk').innerText = "$0.00";
+            document.getElementById('warningMessage').style.display = 'none';
+        }
+
+        calculate();
+    </script>
+</body>
+</html>
